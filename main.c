@@ -382,6 +382,83 @@ static void inputNewBook(BookList *head) {
     printBook(&b);
 }
 
+/*更新图书信息：按编号或书名定位，逐项更新书名/作者/出版社/出版年份/库存数量*/
+static void updateBookInfo(BookList head) {
+    char key[64];
+    printf("请输入要更新的图书编号或书名：");
+    readLine(key, sizeof(key));
+    if (key[0] == '\0') {
+        printf("输入为空，更新取消！\n");
+        return;
+    }
+
+    /*先按编号、其次按书名定位图书*/
+    BookNode *node = findBookById(head, key);
+    if (node == NULL) {
+        node = findBookByName(head, key);
+    }
+    if (node == NULL) {
+        printf("未找到编号或名称为\"%s\"的图书！\n", key);
+        return;
+    }
+
+    printf("当前图书信息：\n");
+    printBook(&node->data);
+
+    char buf[64];
+
+    /*书名：回车保留原值*/
+    printf("请输入新的书名（回车保留原值）：");
+    readLine(buf, sizeof(buf));
+    if (buf[0] != '\0') {
+        strncpy(node->data.name, buf, sizeof(node->data.name) - 1);
+        node->data.name[sizeof(node->data.name) - 1] = '\0';
+    }
+
+    /*作者*/
+    printf("请输入新的作者（回车保留原值）：");
+    readLine(buf, sizeof(buf));
+    if (buf[0] != '\0') {
+        strncpy(node->data.author, buf, sizeof(node->data.author) - 1);
+        node->data.author[sizeof(node->data.author) - 1] = '\0';
+    }
+
+    /*出版社*/
+    printf("请输入新的出版社（回车保留原值）：");
+    readLine(buf, sizeof(buf));
+    if (buf[0] != '\0') {
+        strncpy(node->data.publisher, buf, sizeof(node->data.publisher) - 1);
+        node->data.publisher[sizeof(node->data.publisher) - 1] = '\0';
+    }
+
+    /*出版年份：非法则保留原值*/
+    printf("请输入新的出版年份（回车保留原值）：");
+    readLine(buf, sizeof(buf));
+    if (buf[0] != '\0') {
+        int year = 0;
+        if (sscanf(buf, "%d", &year) == 1 && year > 0 && year < 2100) {
+            node->data.year = year;
+        } else {
+            printf("出版年份无效，保留原值！\n");
+        }
+    }
+
+    /*库存数量：非法则保留原值*/
+    printf("请输入新的库存数量（回车保留原值）：");
+    readLine(buf, sizeof(buf));
+    if (buf[0] != '\0') {
+        int stock = 0;
+        if (sscanf(buf, "%d", &stock) == 1 && stock >= 0) {
+            node->data.stock = stock;
+        } else {
+            printf("库存数量无效，保留原值！\n");
+        }
+    }
+
+    printf("图书信息更新成功！\n");
+    printBook(&node->data);
+}
+
 /*管理员功能子菜单：图书信息录入等（后续功能在此扩展）*/
 static void adminMenu(BookList *head) {
     int choice;
@@ -389,6 +466,7 @@ static void adminMenu(BookList *head) {
         printf("\n======管理员功能======\n");
         printf("1.图书信息录入\n");
         printf("2.删除图书信息\n");
+        printf("3.图书信息更新\n");
         printf("0.返回主菜单\n");
         printf("请选择：");
         int ret = scanf("%d", &choice);
@@ -421,6 +499,9 @@ static void adminMenu(BookList *head) {
                 }
                 break;
             }
+            case 3:
+                updateBookInfo(*head);
+                break;
             case 0:
                 return;
             default:
