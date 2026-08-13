@@ -40,6 +40,26 @@ void genBookId(BookList head, char *buf, int size) {
     snprintf(buf, (size_t)size, "B%03d", max + 1);
 }
 
+/*按编号或书名删除图书节点：找到则摘链并释放内存，返回1；未找到返回0*/
+int removeBook(BookList *head, const char *key) {
+    BookNode *prev = NULL;
+    BookNode *p = *head;
+    while (p != NULL) {
+        if (strcmp(p->data.id, key) == 0 || strcmp(p->data.name, key) == 0) {
+            if (prev == NULL) {
+                *head = p->next;    /*删除头节点，更新头指针*/
+            } else {
+                prev->next = p->next;   /*摘链*/
+            }
+            free(p);    /*释放节点内存*/
+            return 1;
+        }
+        prev = p;
+        p = p->next;
+    }
+    return 0;   /*未找到*/
+}
+
 /*返回链表长度:O(n)*/
 int listLength(BookList head) {
     int n = 0;

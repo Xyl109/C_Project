@@ -388,6 +388,7 @@ static void adminMenu(BookList *head) {
     while (1) {
         printf("\n======管理员功能======\n");
         printf("1.图书信息录入\n");
+        printf("2.删除图书信息\n");
         printf("0.返回主菜单\n");
         printf("请选择：");
         int ret = scanf("%d", &choice);
@@ -405,6 +406,21 @@ static void adminMenu(BookList *head) {
             case 1:
                 inputNewBook(head);
                 break;
+            case 2: {
+                printf("请输入要删除的图书编号或书名：");
+                char delKey[64];
+                readLine(delKey, sizeof(delKey));
+                if (delKey[0] == '\0') {
+                    printf("输入为空，删除取消！\n");
+                    break;
+                }
+                if (removeBook(head, delKey)) {
+                    printf("图书删除成功！\n");
+                } else {
+                    printf("未找到编号或名称为\"%s\"的图书！\n", delKey);
+                }
+                break;
+            }
             case 0:
                 return;
             default:
