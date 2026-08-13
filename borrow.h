@@ -61,6 +61,12 @@ BorrowStatus borrowBook(BookList head, BorrowList *records, const char *key, con
 /*找到后标记该记录已归还，库存加一*/
 ReturnStatus returnBook(BookList head, BorrowList *records, const char *key);
 
+/*统计某借阅人未归还的借阅记录条数：O(n)线性扫描*/
+int countBorrowedByUser(BorrowList records, const char *userName);
+
+/*遍历某借阅人未归还的借阅记录：按bookId查回图书节点，逐条调用visit(图书, 借阅日期)*/
+void traverseBorrowedByUser(BookList head, BorrowList records, const char *userName, void (*visit)(Book *b, const char *date));
+
 /*释放整条借阅记录链表，防止内存泄漏*/
 void freeBorrowList(BorrowList head);
 

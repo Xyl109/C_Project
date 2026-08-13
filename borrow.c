@@ -124,6 +124,33 @@ ReturnStatus returnBook(BookList head, BorrowList *records, const char *key) {
     return RETURN_OK;
 }
 
+/*统计某借阅人未归还的借阅记录条数*/
+int countBorrowedByUser(BorrowList records, const char *userName) {
+    int n = 0;
+    BorrowNode *p = records;
+    while (p != NULL) {
+        if (strcmp(p->data.userName, userName) == 0 && !p->data.returned) {
+            n++;
+        }
+        p = p->next;
+    }
+    return n;
+}
+
+/*遍历某借阅人未归还的借阅记录：按bookId查回图书节点，逐条调用visit回调*/
+void traverseBorrowedByUser(BookList head, BorrowList records, const char *userName, void (*visit)(Book *b, const char *date)) {
+    BorrowNode *p = records;
+    while (p != NULL) {
+        if (strcmp(p->data.userName, userName) == 0 && !p->data.returned) {
+            BookNode *node = findBookById(head, p->data.bookId);
+            if (node != NULL) {
+                visit(&node->data, p->data.date);
+            }
+        }
+        p = p->next;
+    }
+}
+
 /*释放整条借阅记录链表*/
 void freeBorrowList(BorrowList head) {
     BorrowNode *p = head;

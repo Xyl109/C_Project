@@ -4,7 +4,7 @@
 #include "query.h"
 #include "borrow.h"
 
-/*清空缓冲区（配合scanf使用）*/
+/*清空缓冲区*/
 static void clearInput(void) {
     int c;
     while ((c = getchar()) != '\n' && c != EOF) {}
@@ -160,6 +160,12 @@ static void queryMenu(BookList head) {
     }
 }
 
+/*打印一本在借图书：完整图书信息 + 借阅日期（借阅查询回调）*/
+static void printBorrowedBook(Book *b, const char *date) {
+    printBook(b);
+    printf("借阅日期:%s\n", date);
+}
+
 /*图书借阅子菜单*/
 static void borrowdMenu(BookList head, BorrowList *records) {
     int choice;
@@ -167,6 +173,7 @@ static void borrowdMenu(BookList head, BorrowList *records) {
         printf("\n======图书借阅======\n");
         printf("1.借阅图书\n");
         printf("2.归还图书\n");
+        printf("3.借阅查询\n");
         printf("0.返回主菜单\n");
         printf("请选择：");
         int ret = scanf("%d", &choice);
@@ -237,6 +244,23 @@ static void borrowdMenu(BookList head, BorrowList *records) {
                     default:
                         printf("未知错误！\n");
                 }
+                break;
+            }
+            case 3: {
+                printf("请输入借阅人姓名：");
+                char queryName[30];
+                readLine(queryName, sizeof(queryName));
+                if (queryName[0] == '\0') {
+                    printf("输入为空，查询取消！\n");
+                    break;
+                }
+                int cnt = countBorrowedByUser(*records, queryName);
+                if (cnt == 0) {
+                    printf("借阅人\"%s\"当前没有未归还的借阅记录！\n", queryName);
+                    break;
+                }
+                printf("借阅人\"%s\"当前共借阅%d本图书:\n", queryName, cnt);
+                traverseBorrowedByUser(head, *records, queryName, printBorrowedBook);
                 break;
             }
             case 0:
