@@ -1,4 +1,4 @@
-#include "borrow.h"
+#include "Inc/borrow.h"
 #include <string.h>
 #include <stdlib.h>
 #include <time.h>
@@ -16,7 +16,7 @@ static void getCurrenDate(char *buf, int size) {
 }
 
 /*创建空借阅记录链表*/
-BookList createBorrowList(void) {
+BorrowList createBorrowList(void) {
     return NULL;
 }
 
@@ -27,7 +27,7 @@ BookNode *findBookById(BookList head, const char *id) {
         if (strcmp(p->data.id, id) == 0) {
             return p;
         }
-        p->next;
+        p = p->next;
     }
     return NULL;
 }
@@ -71,7 +71,38 @@ BorrowStatus borrowBook(BookList head, BorrowList *records, const char *key, con
     BookNode *node = findBookById(head, key);
     if (node == NULL) {
         node = findBookByName(head, key);
-    } else if (node == NULL) {
+    }
+    if (node == NULL) {
         return BORROW_NOT_FOUND;    /*未找到*/
-    } 
+    }
+    /*检查库存*/
+    if (node->data.stock <= 0) {
+        return BORROW_NO_STOCK; /*库存为0，借阅失败*/
+    }
+    /*构造借阅记录*/
+    BorrowRecord rec;
+    memset(&rec, 0, sizeof(rec));
+    strncpy(rec.userName, userName, sizeof(rec.userName) - 1);
+    strncpy(rec.bookId, node->data.id, sizeof(rec.bookId) - 1);
+    strncpy(rec.bookName, node->data.name, sizeof(rec.bookName) - 1);
+    getCurrenDate(rec.date, sizeof(rec.date));
+
+    if (!appendRecord(records, rec)) {
+        return BORROW_RECORD_FAIL;  /*记录创建失败，库存未扣减*/
+    }
+
+    /*扣减库存*/
+    node->data.stock--;
+
+    return BORROW_OK;
+}
+
+/*释放整条借阅记录链表*/
+void freeBorrowList(BorrowList head) {
+    BorrowNode *p = head;
+    while (p != NULL) {
+        BorrowNode *temp = p->next; /*先保存后继节点*/
+        free(p);
+        p = temp;
+    }
 }

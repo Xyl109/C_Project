@@ -29,7 +29,7 @@ typedef enum {
 } BorrowStatus;
 
 /*创建空借阅记录链表，返回NULL*/
-BookList createBorrowList(void);
+BorrowList createBorrowList(void);
 
 /*按照图书编号精确查找：O(n)线性扫描，找到返回节点指针，否则返回NULL*/
 BookNode *findBookById(BookList head, const char *id);

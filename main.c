@@ -1,7 +1,8 @@
 #include <stdio.h>
 #include <string.h>
-#include "book.h"
-#include "query.h"
+#include "Inc/book.h"
+#include "Inc/query.h"
+#include "Inc/borrow.h"
 
 /*清空缓冲区（配合scanf使用）*/
 static void clearInput(void) {
@@ -159,6 +160,68 @@ static void queryMenu(BookList head) {
     }
 }
 
+/*图书借阅子菜单*/
+static void borrowdMenu(BookList head, BorrowList *records) {
+    int choice;
+    while (1) {
+        printf("\n======图书借阅======\n");
+        printf("1.借阅图书\n");
+        printf("0.返回主菜单\n");
+        printf("请选择：");
+        int ret = scanf("%d", &choice);
+        if (ret == EOF) {
+            /*输入流结束通道关闭*/
+            return;
+        }
+        if (ret != 1) {
+            printf("输入无效，请重新输入！\n");
+            clearInput();
+            continue;
+        }
+        clearInput();
+
+        switch (choice) {
+            case 1:
+                printf("请输入需要借阅的书籍书名或者编号：");
+                char key[64];
+                readLine(key, sizeof(key));
+                if (key[0] == '\0') {
+                    printf("输入为空，借阅取消！\n");
+                    break;
+                }
+                printf("请输入借阅人姓名：");
+                char userName[30];
+                readLine(userName, sizeof(userName));
+                if (userName[0] == '\0') {
+                    printf("输入为空，借阅取消!\n");
+                    break;
+                }
+                BorrowStatus st = borrowBook(head, records, key, userName);
+                switch (st) {
+                    case BORROW_OK:
+                        printf("借阅成功！库存已减一。\n");
+                        break;
+                    case BORROW_NOT_FOUND:
+                        printf("未找到编号或名称为\"%s\"的图书！\n", key);
+                        break;
+                    case BORROW_NO_STOCK:
+                        printf("该图书已无库存，借阅失败！\n");
+                        break;
+                    case BORROW_RECORD_FAIL:
+                        printf("内存不足，借阅记录创建失败，请稍后重试!\n");
+                        break;
+                    default:
+                        printf("未知错误！\n");
+                }
+                break;
+            case 0:
+                return;
+            default:
+                printf("无效选项，请重新输入！\n");
+        }
+    }
+}
+
 /*浏览全部图书*/
 static void showAll(BookList head) {
     if (head == NULL) {
@@ -192,12 +255,14 @@ static void initSampleData(BookList *head) {
 int main(void) {
     BookList list = createList();
     initSampleData(&list);
+    BorrowList records = createBorrowList();    /*借阅记录链表*/
 
     int choice;
     while (1) {
-        printf("\n=======图书管理系统======\n");
+        printf("\n======图书管理系统======\n");
         printf("1.用户功能-图书查询\n");
         printf("2.浏览全部图书\n");
+        printf("3.图书借阅\n");
         printf("0.退出\n");
         printf("请选择：");
         int ret = scanf("%d", &choice);
@@ -214,8 +279,10 @@ int main(void) {
         switch (choice) {
             case 1: queryMenu(list);    break;
             case 2: showAll(list);  break;
+            case 3: borrowdMenu(list, &records);    break;
             case 0:
                 freeList(list);
+                freeBorrowList(records);
                 printf("感谢使用,再见！\n");
                 return 0;
             default:
@@ -223,6 +290,7 @@ int main(void) {
         }
     }
     freeList(list);
+    freeBorrowList(records);
     printf("感谢使用,再见！\n");
     return 0;
 }
