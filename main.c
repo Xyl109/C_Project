@@ -56,6 +56,14 @@ static void printBook(Book *b) {
     printf("年份:%d 价格:%.2f 馆藏:%d 库存:%d\n", b->year, b->price, b->total, b->stock);
 }
 
+/*列表展示一本图书：仅显示书名/作者/出版社/出版年份/库存数量（管理员列表展示回调）*/
+static void printBookBrief(Book *b) {
+    printPadded(b->name, 20);
+    printPadded(b->author, 12);
+    printPadded(b->publisher, 16);
+    printf("%-6d %-6d\n", b->year, b->stock);
+}
+
 /*显示查询结果：找到则列出全部，未找到则显示错误信息*/
 static void showResult(QueryResult *r, const char *condName) {
     if (r->count == 0) {
@@ -282,6 +290,20 @@ static void showAll(BookList head) {
     traverseList(head, printBook);
 }
 
+/*管理员列表展示全部图书：仅列书名/作者/出版社/出版年份/库存数量，空表给出提示*/
+static void showBookList(BookList head) {
+    if (head == NULL) {
+        printf("当前没有图书数据！\n");
+        return;
+    }
+    printf("当前共有%d本图书:\n", listLength(head));
+    printPadded("书名", 20);
+    printPadded("作者", 12);
+    printPadded("出版社", 16);
+    printf("%-6s %-6s\n", "年份", "库存");
+    traverseList(head, printBookBrief);
+}
+
 /*内置样例数据*/
 static void initSampleData(BookList *head) {
     Book samples[] = {
@@ -467,6 +489,7 @@ static void adminMenu(BookList *head) {
         printf("1.图书信息录入\n");
         printf("2.删除图书信息\n");
         printf("3.图书信息更新\n");
+        printf("4.图书信息显示\n");
         printf("0.返回主菜单\n");
         printf("请选择：");
         int ret = scanf("%d", &choice);
@@ -501,6 +524,9 @@ static void adminMenu(BookList *head) {
             }
             case 3:
                 updateBookInfo(*head);
+                break;
+            case 4:
+                showBookList(*head);
                 break;
             case 0:
                 return;
