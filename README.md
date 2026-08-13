@@ -1,6 +1,6 @@
 # C_Project — 图书管理系统（C 语言）
 
-基于 C 语言与单向链表实现的控制台图书管理系统，不依赖任何第三方库，支持图书查询、浏览与借阅三大功能。
+基于 C 语言与单向链表实现的控制台图书管理系统，不依赖任何第三方库，支持图书查询、浏览、借阅与归还四大功能。
 
 ## 功能特性
 
@@ -12,6 +12,7 @@
   - 按库存数量比较查询（`<=` / `>=` / `=`）
 - **浏览全部图书**：按链表顺序列出馆内全部图书及详细信息
 - **图书借阅**：输入书名或编号借书，自动校验库存、自动记录借阅日期并扣减库存
+- **图书归还**：输入书名或编号归还图书，自动标记借阅记录已归还并将库存加一
 - **中文对齐**：内置 UTF-8 显示宽度计算，避免中文内容表格列错位
 - **内存管理**：程序退出时自动释放图书链表与借阅记录链表，防止内存泄漏
 
@@ -85,7 +86,7 @@ gcc -Wall -Wextra main.c book.c borrow.c query.c -o output/libman.exe
 
 显示当前全部图书的编号、书名、作者、出版社、出版年份、价格、馆藏总数与库存。
 
-### 3. 图书借阅
+### 3. 图书借阅与归还
 
 输入**书名或编号**定位图书，再输入借阅人姓名，流程为：
 
@@ -94,6 +95,12 @@ gcc -Wall -Wextra main.c book.c borrow.c query.c -o output/libman.exe
 3. 库存 `<= 0` 返回 `BORROW_NO_STOCK`，拒绝借阅；
 4. 借阅成功：新增一条借阅记录（日期取系统当前时间，格式 `yy-mm-dd`），库存自动减一；
 5. 借阅记录**先写入成功后才扣减库存**，记录创建失败时库存保持不变（`BORROW_RECORD_FAIL`）。
+
+**归还图书**：在图书借阅子菜单中选择 `2`，输入要归还图书的书名或编号：
+
+1. 先按编号、其次按书名精确查找，未找到提示"未找到编号或者名称为 xxx 的图书"（`RETURN_NOT_FOUND`）；
+2. 在借阅记录链表中查找该图书**未归还**的记录，没有则提示"该图书没有未归还的借阅记录，归还失败"（`RETURN_NO_RECORD`）；
+3. 归还成功：该借阅记录标记为已归还（`returned = 1`），图书库存加一（`RETURN_OK`），提示"归还成功！库存已加一"。
 
 ### 0. 退出
 
@@ -105,17 +112,43 @@ gcc -Wall -Wextra main.c book.c borrow.c query.c -o output/libman.exe
 |---|---|---|
 | `Book` | 一本图书 | id / name / author / publisher / year / price / total / stock |
 | `BookNode` | 图书链表节点 | data（Book）、next |
-| `BorrowRecord` | 一条借阅记录 | userName / bookId / bookName / date |
+| `BorrowRecord` | 一条借阅记录 | userName / bookId / bookName / date / returned |
 | `BorrowNode` | 借阅记录链表节点 | data（BorrowRecord）、next |
 | `QueryResult` | 查询结果 | nodes（命中节点指针数组）、count、ok |
 
 - **存储结构**：图书与借阅记录均采用单向链表，`createList` / `createBorrowList` 返回 NULL 表示空链表；
 - **借阅流程**：查编号 → 查书名 → 校验库存 → 追加记录 → 扣减库存（失败回滚）；
+- **归还流程**：查编号 → 查书名 → 查找该图书未归还的借阅记录 → 标记已归还 + 库存加一；无未归还记录时拒绝归还，避免从未借出的图书库存被错误增加（`stock > total`）；
 - **查询实现**：全部基于 `O(n)` 线性遍历；书名 / 作者 / 出版社为 `strstr` 包含式模糊匹配；
 - **中文对齐**：`displayWidth` 按 UTF-8 编码统计显示宽度（三字节 CJK 计 2 列，其余计 1 列），配合 `printPadded` 补空格对齐；
 - **输入健壮性**：`clearInput` 清理 `scanf` 遗留的换行符、`readLine` 读取整行并去除末尾换行、非法输入提示重输、EOF（如管道关闭）自动退出。
 
+## 常见问题
+
+### PowerShell / cmd 下中文乱码怎么办？
+
+源码为 UTF-8 编码，而 Windows 自带 PowerShell 5.1 与 cmd 默认使用 GBK 代码页（936），程序输出的中文会显示为乱码。解决方法：
+
+- **PowerShell（当前会话）**：运行程序前先执行
+  ```powershell
+  [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+  ```
+  若还需要输入中文（如借阅人姓名），一并设置 `[Console]::InputEncoding = [System.Text.Encoding]::UTF8`；
+- **永久生效**：将上面一行写入 PowerShell 配置文件（`$PROFILE`）；
+- **cmd**：运行前执行 `chcp 65001` 切换到 UTF-8 代码页；
+- **推荐**：改用 Git Bash、Windows Terminal 或 PowerShell 7，默认即 UTF-8，无需任何设置。
+
+> 提示：若乱码表现为方框 / 问号而非错位文字，是控制台字体不支持中文，将字体改为新宋体（NSimSun）等中文字体即可。
+
 ## 更新记录
+
+**2026-08-13：开发归还图书功能**（commit `f535911`）
+
+1. `BorrowRecord` 新增 `returned` 字段（0=未归还，1=已归还），借阅记录由 `memset` 清零，旧记录自动视为未归还，无需迁移；
+2. 新增 `ReturnStatus` 枚举（`RETURN_OK` / `RETURN_NOT_FOUND` / `RETURN_NO_RECORD`）与 `returnBook` 函数：查编号 → 查书名 → 查未归还记录 → 标记归还 + 库存加一；
+3. 借阅子菜单新增"2.归还图书"，归还成功提示"归还成功！库存已加一"。
+
+验证：`gcc -Wall -Wextra` 编译零警告；归还成功 / 未找到 / 无未归还记录三条路径实测通过。
 
 **2026-08-13：项目结构优化**
 
