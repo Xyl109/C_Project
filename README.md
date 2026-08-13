@@ -19,19 +19,19 @@
 
 ```
 C_Project/
-├── main.c              # 程序入口：主菜单、查询/借阅子菜单、显示工具函数
-├── Inc/                # 头文件
-│   ├── book.h          # 图书结构体 Book 与图书链表操作声明
-│   ├── borrow.h        # 借阅记录结构体与借书流程声明
-│   └── query.h         # 查询结果 QueryResult 与 5 种查询声明
-├── Src/                # 实现文件
-│   ├── book.c          # 图书链表：创建、尾部插入、长度、遍历、释放
-│   ├── borrow.c        # 借阅记录链表、按编号/书名查找、借书流程
-│   └── query.c         # 条件查询实现与查询结果释放
-├── output/             # 构建产物目录（已被 .gitignore 忽略）
-├── .vscode/            # VS Code 工程配置
+├── main.c       # 程序入口：主菜单、查询/借阅子菜单、显示工具函数
+├── book.h       # 图书结构体 Book 与图书链表操作声明
+├── book.c       # 图书链表：创建、尾部插入、长度、遍历、释放
+├── borrow.h     # 借阅记录结构体、借书流程与状态码声明
+├── borrow.c     # 借阅记录链表、按编号/书名查找、借书流程
+├── query.h      # 查询结果 QueryResult 与 5 种查询声明
+├── query.c      # 条件查询实现与查询结果释放
+├── output/      # 构建产物目录（已被 .gitignore 忽略）
+├── .vscode/     # VS Code 工程配置
 └── README.md
 ```
+
+> 所有源文件与头文件直接位于项目根目录，`#include "xxx.h"` 按相对路径即可找到，无需额外 include 路径。
 
 ## 环境要求
 
@@ -44,7 +44,7 @@ C_Project/
 在项目根目录执行：
 
 ```bash
-gcc -Wall -Wextra -I Inc main.c Src/book.c Src/query.c Src/borrow.c -o output/libman.exe
+gcc -Wall -Wextra main.c book.c borrow.c query.c -o output/libman.exe
 ```
 
 运行：
@@ -53,7 +53,7 @@ gcc -Wall -Wextra -I Inc main.c Src/book.c Src/query.c Src/borrow.c -o output/li
 ./output/libman.exe
 ```
 
-（Linux / macOS 下将输出文件名改为 `libman` 即可。）
+（Windows cmd 下用 `output\libman.exe`；若中文显示乱码，先执行 `chcp 65001` 切换到 UTF-8 代码页。Linux / macOS 下将输出文件名改为 `libman` 即可。）
 
 ## 使用说明
 
@@ -116,6 +116,10 @@ gcc -Wall -Wextra -I Inc main.c Src/book.c Src/query.c Src/borrow.c -o output/li
 - **输入健壮性**：`clearInput` 清理 `scanf` 遗留的换行符、`readLine` 读取整行并去除末尾换行、非法输入提示重输、EOF（如管道关闭）自动退出。
 
 ## 更新记录
+
+**2026-08-13：项目结构优化**
+
+- `Inc/`、`Src/` 目录合并到项目根目录（`book.c/h`、`borrow.c/h`、`query.c/h`），编译命令相应简化为 `gcc -Wall -Wextra main.c book.c borrow.c query.c -o output/libman.exe`，不再需要 `-I Inc`。
 
 **2026-08-13：修复两个 Bug 并统一类型**
 
