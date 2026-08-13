@@ -285,7 +285,7 @@ int main(void) {
     int choice;
     while (1) {
         printf("\n======图书管理系统======\n");
-        printf("1.用户功能-图书查询\n");
+        printf("1.图书查询\n");
         printf("2.浏览全部图书\n");
         printf("3.图书借阅\n");
         printf("0.退出\n");
