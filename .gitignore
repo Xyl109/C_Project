@@ -1,0 +1,4 @@
+# 构建产物
+book_manager.exe
+build/
+output/
