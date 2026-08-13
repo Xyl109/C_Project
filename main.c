@@ -3,6 +3,7 @@
 #include "book.h"
 #include "query.h"
 #include "borrow.h"
+#include "admin.h"
 
 /*清空缓冲区*/
 static void clearInput(void) {
@@ -301,6 +302,32 @@ static void initSampleData(BookList *head) {
     }
 }
 
+/*管理员登录*/
+static int adminLogin(void) {
+    const int MAX_ATTEMPTS = 3;
+    int remaining = MAX_ATTEMPTS;   /*剩余尝试次数*/
+    char username[20];
+    char password[20];
+    while (remaining > 0) {
+        printf("请输入管理员用户名：");
+        readLine(username, sizeof(username));
+        printf("请输入密码：");
+        readLine(password, sizeof(password));
+        if (username[0] == '\0' || password[0] == '\0') {
+            printf("用户名或密码不能为空，请重新输入！\n");
+            continue;   /*空输入不消耗次数*/
+        }
+        if (verifyAdmin(username, password)) {
+            printf("管理员登录成功！\n");
+            return 1;
+        }
+        remaining--;
+        printf("用户名或密码错误，剩余%d次机会！\n", remaining);
+    }
+    printf("登录失败次数过多，返回主菜单！\n");
+    return 0;
+}
+
 int main(void) {
     BookList list = createList();
     initSampleData(&list);
@@ -312,6 +339,7 @@ int main(void) {
         printf("1.图书查询\n");
         printf("2.浏览全部图书\n");
         printf("3.图书借阅\n");
+        printf("4.管理员登录\n");
         printf("0.退出\n");
         printf("请选择：");
         int ret = scanf("%d", &choice);
@@ -329,6 +357,7 @@ int main(void) {
             case 1: queryMenu(list);    break;
             case 2: showAll(list);  break;
             case 3: borrowdMenu(list, &records);    break;
+            case 4: adminLogin();   break;
             case 0:
                 freeList(list);
                 freeBorrowList(records);

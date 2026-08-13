@@ -1,6 +1,6 @@
 # C_Project — 图书管理系统（C 语言）
 
-基于 C 语言与单向链表实现的控制台图书管理系统，不依赖任何第三方库，支持图书查询、浏览、借阅与归还四大功能。
+基于 C 语言与单向链表实现的控制台图书管理系统，不依赖任何第三方库，支持图书查询、浏览、借阅、归还与管理员登录五大功能。
 
 ## 功能特性
 
@@ -14,6 +14,7 @@
 - **图书借阅**：输入书名或编号借书，自动校验库存、自动记录借阅日期并扣减库存
 - **图书归还**：输入书名或编号归还图书，自动标记借阅记录已归还并将库存加一
 - **借阅查询**：按借阅人姓名查询其当前未归还（在借）的图书，显示完整图书信息与借阅日期
+- **管理员登录**：主菜单输入 `4` 进入管理员登录，默认账号 `admin` / `123456`，最多尝试 3 次
 - **中文对齐**：内置 UTF-8 显示宽度计算，避免中文内容表格列错位
 - **内存管理**：程序退出时自动释放图书链表与借阅记录链表，防止内存泄漏
 
@@ -28,6 +29,8 @@ C_Project/
 ├── borrow.c     # 借阅记录链表、按编号/书名查找、借书流程
 ├── query.h      # 查询结果 QueryResult 与 5 种查询声明
 ├── query.c      # 条件查询实现与查询结果释放
+├── admin.h      # 管理员账号结构体 Admin 与登录校验声明
+├── admin.c      # 管理员登录校验实现（内置默认账号）
 ├── output/      # 构建产物目录（已被 .gitignore 忽略）
 ├── .vscode/     # VS Code 工程配置
 └── README.md
@@ -46,7 +49,7 @@ C_Project/
 在项目根目录执行：
 
 ```bash
-gcc -Wall -Wextra main.c book.c borrow.c query.c -o output/libman.exe
+gcc -Wall -Wextra main.c book.c borrow.c query.c admin.c -o output/libman.exe
 ```
 
 运行：
@@ -63,9 +66,10 @@ gcc -Wall -Wextra main.c book.c borrow.c query.c -o output/libman.exe
 
 ```
 ======图书管理系统======
-1.用户功能-图书查询
+1.图书查询
 2.浏览全部图书
 3.图书借阅
+4.管理员登录
 0.退出
 ```
 
@@ -109,6 +113,15 @@ gcc -Wall -Wextra main.c book.c borrow.c query.c -o output/libman.exe
 2. 无记录时提示"借阅人 xxx 当前没有未归还的借阅记录！"；
 3. 有记录时显示"借阅人 xxx 当前共借阅 N 本图书"，并逐本列出完整图书信息（编号 / 书名 / 作者 / 出版社 / 年份 / 价格 / 馆藏 / 库存）与借阅日期。
 
+### 4. 管理员登录
+
+主菜单输入 `4` 进入管理员登录：
+
+1. 输入管理员用户名与密码（默认账号：`admin` / `123456`）；
+2. 用户名或密码为空时提示重输，不消耗次数；
+3. 凭据错误提示"用户名或密码错误，剩余 N 次机会"，**最多尝试 3 次**；
+4. 校验通过提示"管理员登录成功"，返回主菜单（管理员操作功能待后续扩展）。
+
 ### 0. 退出
 
 释放所有动态内存（图书链表 + 借阅记录链表）后退出。
@@ -122,6 +135,7 @@ gcc -Wall -Wextra main.c book.c borrow.c query.c -o output/libman.exe
 | `BorrowRecord` | 一条借阅记录 | userName / bookId / bookName / date / returned |
 | `BorrowNode` | 借阅记录链表节点 | data（BorrowRecord）、next |
 | `QueryResult` | 查询结果 | nodes（命中节点指针数组）、count、ok |
+| `Admin` | 管理员账号 | username / password |
 
 - **存储结构**：图书与借阅记录均采用单向链表，`createList` / `createBorrowList` 返回 NULL 表示空链表；
 - **借阅流程**：查编号 → 查书名 → 校验库存 → 追加记录 → 扣减库存（失败回滚）；
@@ -148,6 +162,13 @@ gcc -Wall -Wextra main.c book.c borrow.c query.c -o output/libman.exe
 > 提示：若乱码表现为方框 / 问号而非错位文字，是控制台字体不支持中文，将字体改为新宋体（NSimSun）等中文字体即可。
 
 ## 更新记录
+
+**2026-08-13：开发管理员登录模块**
+
+1. 新增 `admin.h` / `admin.c`：`Admin` 结构体与 `verifyAdmin` 校验函数，模块内置默认账号 `admin` / `123456`；
+2. 主菜单新增"4.管理员登录"：最多 3 次尝试，空输入不消耗次数，成功提示"管理员登录成功"。
+
+验证：`gcc -Wall -Wextra` 编译零警告；正确凭据 / 错误后改正 / 三次失败 / 空输入四条路径实测通过。
 
 **2026-08-13：开发借阅查询功能**
 
