@@ -7,7 +7,7 @@
 static int addHit(QueryResult *r, BookNode *node) {
     BookNode **newNodes = (BookNode **)realloc(r->nodes, (size_t)(r->count + 1) * (sizeof(BookNode *)));
     if (newNodes == NULL) {
-        r->ok = 0;  /*标记结果不完整*/
+        r->ok = 0;
         return 0;
     }
     r->nodes = newNodes;
@@ -22,7 +22,7 @@ QueryResult queryByTitle(BookList head, const char *keyword) {
     BookNode *p = head;
     while (p != NULL) {
         if (strstr(p->data.name, keyword) != NULL) {
-            if (!addHit(&r, p)) break;  /*内存不足，停止扫描*/
+            if (!addHit(&r, p)) break;
         }
         p = p->next;
     }
@@ -35,7 +35,7 @@ QueryResult queryByAuthor(BookList head, const char *keyword) {
     BookNode *p = head;
     while (p != NULL) {
         if (strstr(p->data.author, keyword) != NULL) {
-            if (!addHit(&r, p)) break;  /*内存不足，停止扫描*/
+            if (!addHit(&r, p)) break;
         }
         p = p->next;
     }
@@ -48,7 +48,7 @@ QueryResult queryByPublisher(BookList head, const char *keyword) {
     BookNode *p = head;
     while (p != NULL) {
         if (strstr(p->data.publisher, keyword) != NULL) {
-            if (!addHit(&r, p)) break;  /*内存不足，停止扫描*/
+            if (!addHit(&r, p)) break;
         }
         p = p->next;
     }
@@ -61,7 +61,7 @@ QueryResult queryByYear(BookList head, int year) {
     BookNode *p = head;
     while (p != NULL) {
         if (p->data.year == year) {
-            if (!addHit(&r, p)) break;  /*内存不足，停止扫描*/
+            if (!addHit(&r, p)) break;
         }
         p = p->next;
     }
@@ -79,7 +79,7 @@ QueryResult queryByStock(BookList head, int op, int value) {
         else if (op == 2)    hit = (s >= value);
         else if (op == 3)    hit = (s == value);
         if (hit) {
-            if (!addHit(&r, p)) break;  /*内存不足，停止扫描*/
+            if (!addHit(&r, p)) break;
         }
         p = p->next;
     }

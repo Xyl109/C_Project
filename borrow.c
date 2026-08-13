@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <time.h>
 
-/*获取当前日期到buf*/
+/*获取当前日期到buf（格式 yy-mm-dd）*/
 static void getCurrenDate(char *buf, int size) {
     time_t now = time(NULL);
     struct tm *tm = localtime(&now);
@@ -13,6 +13,26 @@ static void getCurrenDate(char *buf, int size) {
         return;
     }
     strftime(buf, (size_t)size, "%y-%m-%d", tm);
+}
+
+/*计算归还日期：当前日期 + BORROW_DAYS 天，写入buf（格式 yy-mm-dd）*/
+void computeDueDate(char *buf, int size) {
+    time_t now = time(NULL);
+    time_t due = now + (time_t)BORROW_DAYS * 24 * 60 * 60;
+    struct tm *tm = localtime(&due);
+    if (tm == NULL) {
+        strncpy(buf, "未知日期", (size_t)size - 1);
+        buf[size - 1] = '\0';
+        return;
+    }
+    strftime(buf, (size_t)size, "%y-%m-%d", tm);
+}
+
+/*判断是否已逾期：当前日期 > 归还日期（yy-mm-dd 定宽零填充，字符串序即时间序）*/
+static int isOverdue(const char *dueDate) {
+    char today[20];
+    getCurrenDate(today, sizeof(today));
+    return strcmp(today, dueDate) > 0;
 }
 
 /*创建空借阅记录链表*/
@@ -54,60 +74,58 @@ static int appendRecord(BorrowList *head, BorrowRecord rec) {
     newNode->next = NULL;
 
     if (*head == NULL) {
-        *head = newNode;    /*空链表：新节点即头节点*/
+        *head = newNode;
     }else {
         BorrowNode *p = *head;
-        while (p->next != NULL) {   /*走点链表尾部*/
+        while (p->next != NULL) {
             p = p->next;
         }
-        p->next = newNode;  /*挂到表尾*/
+        p->next = newNode;
     }
     return 1;
 }
 
 /*借阅一本图书*/
-BorrowStatus borrowBook(BookList head, BorrowList *records, const char *key, const char *userName) {
-    /*查找书籍，先按编号再按书名*/
+BorrowStatus borrowBook(BookList head, BorrowList *records, Blacklist blacklist, const char *key, const char *userName) {
+    if (isBlacklisted(blacklist, userName)) {
+        return BORROW_BLACKLISTED;
+    }
     BookNode *node = findBookById(head, key);
     if (node == NULL) {
         node = findBookByName(head, key);
     }
     if (node == NULL) {
-        return BORROW_NOT_FOUND;    /*未找到*/
+        return BORROW_NOT_FOUND;
     }
-    /*检查库存*/
     if (node->data.stock <= 0) {
-        return BORROW_NO_STOCK; /*库存为0，借阅失败*/
+        return BORROW_NO_STOCK;
     }
-    /*构造借阅记录*/
     BorrowRecord rec;
     memset(&rec, 0, sizeof(rec));
     strncpy(rec.userName, userName, sizeof(rec.userName) - 1);
     strncpy(rec.bookId, node->data.id, sizeof(rec.bookId) - 1);
     strncpy(rec.bookName, node->data.name, sizeof(rec.bookName) - 1);
     getCurrenDate(rec.date, sizeof(rec.date));
+    computeDueDate(rec.dueDate, sizeof(rec.dueDate));
 
     if (!appendRecord(records, rec)) {
-        return BORROW_RECORD_FAIL;  /*记录创建失败，库存未扣减*/
+        return BORROW_RECORD_FAIL;
     }
 
-    /*扣减库存*/
     node->data.stock--;
 
     return BORROW_OK;
 }
 
 /*归还一本图书：按照编号或者书名查找，找到后标记借阅记录已归还并将库存加1*/
-ReturnStatus returnBook(BookList head, BorrowList *records, const char *key) {
-    /*查找书籍，先按编号再按书名*/
+ReturnStatus returnBook(BookList head, BorrowList *records, Blacklist *blacklist, const char *key) {
     BookNode *node = findBookById(head, key);
     if (node == NULL) {
         node = findBookByName(head, key);
     }
     if (node == NULL) {
-        return RETURN_NOT_FOUND;    /*未找到图书*/
+        return RETURN_NOT_FOUND;
     }
-    /*查找该图书未归还的借阅记录*/
     BorrowNode *p = *records;
     while (p != NULL) {
         if (strcmp(p->data.bookId, node->data.id) == 0 && !p->data.returned) {
@@ -116,11 +134,15 @@ ReturnStatus returnBook(BookList head, BorrowList *records, const char *key) {
         p = p->next;
     }
     if (p == NULL) {
-        return RETURN_NO_RECORD;    /*没有未归还的借阅记录*/
+        return RETURN_NO_RECORD;
     }
-    /*标记已归还，库存加一*/
     p->data.returned = 1;
     node->data.stock++;
+
+    if (isOverdue(p->data.dueDate)) {
+        recordOverdue(blacklist, p->data.userName);
+        return RETURN_OVERDUE;
+    }
     return RETURN_OK;
 }
 
@@ -137,14 +159,14 @@ int countBorrowedByUser(BorrowList records, const char *userName) {
     return n;
 }
 
-/*遍历某借阅人未归还的借阅记录：按bookId查回图书节点，逐条调用visit回调*/
-void traverseBorrowedByUser(BookList head, BorrowList records, const char *userName, void (*visit)(Book *b, const char *date)) {
+/*遍历某借阅人未归还的借阅记录：按bookId查回图书节点，逐条调用visit(图书, 借阅日期, 归还日期)*/
+void traverseBorrowedByUser(BookList head, BorrowList records, const char *userName, void (*visit)(Book *b, const char *date, const char *dueDate)) {
     BorrowNode *p = records;
     while (p != NULL) {
         if (strcmp(p->data.userName, userName) == 0 && !p->data.returned) {
             BookNode *node = findBookById(head, p->data.bookId);
             if (node != NULL) {
-                visit(&node->data, p->data.date);
+                visit(&node->data, p->data.date, p->data.dueDate);
             }
         }
         p = p->next;
@@ -155,7 +177,7 @@ void traverseBorrowedByUser(BookList head, BorrowList records, const char *userN
 void freeBorrowList(BorrowList head) {
     BorrowNode *p = head;
     while (p != NULL) {
-        BorrowNode *temp = p->next; /*先保存后继节点*/
+        BorrowNode *temp = p->next;
         free(p);
         p = temp;
     }

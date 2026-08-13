@@ -4,6 +4,8 @@
 #include "query.h"
 #include "borrow.h"
 #include "admin.h"
+#include "user.h"
+#include "blacklist.h"
 
 /*清空缓冲区*/
 static void clearInput(void) {
@@ -28,9 +30,9 @@ static int displayWidth(const char *s) {
     int w = 0;
     const unsigned char *p = (const unsigned char *)s;
     while (*p != '\0') {
-        if (*p >= 0xE0) { w += 2; p += 3; }         /*三字节UTF-8（中文等）*/
-        else if (*p >= 0xC0) { w += 1; p += 2; }    /*两字节UTF-8*/
-        else { w += 1; p += 1; }                    /*ASCII*/
+        if (*p >= 0xE0) { w += 2; p += 3; }
+        else if (*p >= 0xC0) { w += 1; p += 2; }
+        else { w += 1; p += 1; }
     }
     return w;
 }
@@ -95,7 +97,7 @@ static void queryMenu(BookList head) {
         printf("0.返回主菜单\n");
         printf("请选择:");
         int ret = scanf("%d", &choice);
-        if (ret == EOF) {   /*输入流结束（如管道关闭）*/
+        if (ret == EOF) {
             return;
         }
         if (ret != 1) {
@@ -169,14 +171,15 @@ static void queryMenu(BookList head) {
     }
 }
 
-/*打印一本在借图书：完整图书信息 + 借阅日期（借阅查询回调）*/
-static void printBorrowedBook(Book *b, const char *date) {
+/*打印一本在借图书：完整图书信息 + 借阅日期 + 归还日期（借阅查询回调）*/
+static void printBorrowedBook(Book *b, const char *date, const char *dueDate) {
     printBook(b);
     printf("借阅日期:%s\n", date);
+    printf("归还日期:%s\n", dueDate);
 }
 
 /*图书借阅子菜单*/
-static void borrowdMenu(BookList head, BorrowList *records) {
+static void borrowdMenu(BookList head, BorrowList *records, Blacklist *blacklist) {
     int choice;
     while (1) {
         printf("\n======图书借阅======\n");
@@ -187,7 +190,6 @@ static void borrowdMenu(BookList head, BorrowList *records) {
         printf("请选择：");
         int ret = scanf("%d", &choice);
         if (ret == EOF) {
-            /*输入流结束通道关闭*/
             return;
         }
         if (ret != 1) {
@@ -213,11 +215,14 @@ static void borrowdMenu(BookList head, BorrowList *records) {
                     printf("输入为空，借阅取消!\n");
                     break;
                 }
-                BorrowStatus st = borrowBook(head, records, key, userName);
+                BorrowStatus st = borrowBook(head, records, *blacklist, key, userName);
                 switch (st) {
-                    case BORROW_OK:
-                        printf("借阅成功！库存已减一。\n");
+                    case BORROW_OK: {
+                        char due[20];
+                        computeDueDate(due, sizeof(due));
+                        printf("借阅成功！库存已减一。请记得到店归还，归还日期:%s。\n", due);
                         break;
+                    }
                     case BORROW_NOT_FOUND:
                         printf("未找到编号或名称为\"%s\"的图书！\n", key);
                         break;
@@ -226,6 +231,9 @@ static void borrowdMenu(BookList head, BorrowList *records) {
                         break;
                     case BORROW_RECORD_FAIL:
                         printf("内存不足，借阅记录创建失败，请稍后重试!\n");
+                        break;
+                    case BORROW_BLACKLISTED:
+                        printf("借阅人\"%s\"已被拉入借阅黑名单，禁止借阅图书！\n", userName);
                         break;
                     default:
                         printf("未知错误！\n");
@@ -239,10 +247,13 @@ static void borrowdMenu(BookList head, BorrowList *records) {
                     printf("输入为空，归还取消！\n");
                     break;
                 }
-                ReturnStatus rs = returnBook(head, records, retKey);
+                ReturnStatus rs = returnBook(head, records, blacklist, retKey);
                 switch (rs) {
                     case RETURN_OK:
                         printf("归还成功！库存已加一。\n");
+                        break;
+                    case RETURN_OVERDUE:
+                        printf("归还成功！库存已加一，但已超过归还日期，已记录一次超时。\n");
                         break;
                     case RETURN_NOT_FOUND:
                         printf("未找到编号或者名称为\"%s\"的图书！\n", retKey);
@@ -304,6 +315,157 @@ static void showBookList(BookList head) {
     traverseList(head, printBookBrief);
 }
 
+/*显示一个用户信息：用户名 + 密码*/
+static void printUser(User *u) {
+    printf("用户名:%s\n", u->username);
+    printf("密码:%s\n", u->password);
+}
+
+/*管理员列表展示全部用户：仅列用户名/密码，空表给出提示*/
+static void showUserList(UserList head) {
+    if (head == NULL) {
+        printf("当前没有用户数据！\n");
+        return;
+    }
+    printf("当前共有%d个用户:\n", userListLength(head));
+    printf("%-20s %s\n", "用户名", "密码");
+    traverseUserList(head, printUser);
+}
+
+/*内置样例用户*/
+static void initSampleUsers(UserList *head) {
+    User samples[] = {
+        {"zhangsan", "123456"},
+        {"lisi", "123456"}
+    };
+    for (int i = 0; i < (int)(sizeof(samples) / sizeof(samples[0])); i++) {
+        if (!appendUser(head, samples[i])) {
+            printf("内存不足，样例用户加载不完整！\n");
+            return;
+        }
+    }
+}
+
+/*添加新用户：用户名/密码非空，用户名重复则拒绝*/
+static void inputNewUser(UserList *head) {
+    User u;
+    memset(&u, 0, sizeof(u));
+
+    printf("请输入用户名：");
+    readLine(u.username, sizeof(u.username));
+    if (u.username[0] == '\0') {
+        printf("输入为空，添加取消！\n");
+        return;
+    }
+    if (findUserByName(*head, u.username) != NULL) {
+        printf("用户名\"%s\"已存在，添加取消！\n", u.username);
+        return;
+    }
+
+    printf("请输入密码：");
+    readLine(u.password, sizeof(u.password));
+    if (u.password[0] == '\0') {
+        printf("输入为空，添加取消！\n");
+        return;
+    }
+
+    if (!appendUser(head, u)) {
+        printf("内存不足，用户添加失败！\n");
+        return;
+    }
+    printf("用户添加成功！\n");
+    printUser(&u);
+}
+
+/*删除用户：按用户名查找，找到则删除，未找到提示*/
+static void deleteUser(UserList *head) {
+    char key[64];
+    printf("请输入要删除的用户名：");
+    readLine(key, sizeof(key));
+    if (key[0] == '\0') {
+        printf("输入为空，删除取消！\n");
+        return;
+    }
+    if (removeUser(head, key)) {
+        printf("用户删除成功！\n");
+    } else {
+        printf("未找到用户名为\"%s\"的用户！\n", key);
+    }
+}
+
+/*更新用户信息：按用户名定位，更新密码（回车保留原值）*/
+static void updateUserInfo(UserList head) {
+    char key[64];
+    printf("请输入要更新的用户名：");
+    readLine(key, sizeof(key));
+    if (key[0] == '\0') {
+        printf("输入为空，更新取消！\n");
+        return;
+    }
+    UserNode *node = findUserByName(head, key);
+    if (node == NULL) {
+        printf("未找到用户名为\"%s\"的用户！\n", key);
+        return;
+    }
+
+    printf("当前用户信息：\n");
+    printUser(&node->data);
+
+    char buf[64];
+    printf("请输入新的密码（回车保留原值）：");
+    readLine(buf, sizeof(buf));
+    if (buf[0] == '\0') {
+        printf("未修改，更新取消！\n");
+        return;
+    }
+    updateUserPassword(head, key, buf);
+    printf("用户信息更新成功！\n");
+    printUser(&node->data);
+}
+
+/*用户信息管理子菜单：添加/删除/更新/查看列表*/
+static void userMenu(UserList *head) {
+    int choice;
+    while (1) {
+        printf("\n======用户信息管理======\n");
+        printf("1.添加用户\n");
+        printf("2.删除用户\n");
+        printf("3.更新用户信息\n");
+        printf("4.查看用户列表\n");
+        printf("0.返回\n");
+        printf("请选择：");
+        int ret = scanf("%d", &choice);
+        if (ret == EOF) {
+            return;
+        }
+        if (ret != 1) {
+            printf("输入无效，请重新输入！\n");
+            clearInput();
+            continue;
+        }
+        clearInput();
+
+        switch (choice) {
+            case 1:
+                inputNewUser(head);
+                break;
+            case 2:
+                deleteUser(head);
+                break;
+            case 3:
+                updateUserInfo(*head);
+                break;
+            case 4:
+                showUserList(*head);
+                break;
+            case 0:
+                return;
+            default:
+                printf("无效选项，请重新输入！\n");
+        }
+    }
+}
+
 /*内置样例数据*/
 static void initSampleData(BookList *head) {
     Book samples[] = {
@@ -327,7 +489,7 @@ static void initSampleData(BookList *head) {
 /*管理员登录*/
 static int adminLogin(void) {
     const int MAX_ATTEMPTS = 3;
-    int remaining = MAX_ATTEMPTS;   /*剩余尝试次数*/
+    int remaining = MAX_ATTEMPTS;
     char username[20];
     char password[20];
     while (remaining > 0) {
@@ -337,7 +499,7 @@ static int adminLogin(void) {
         readLine(password, sizeof(password));
         if (username[0] == '\0' || password[0] == '\0') {
             printf("用户名或密码不能为空，请重新输入！\n");
-            continue;   /*空输入不消耗次数*/
+            continue;
         }
         if (verifyAdmin(username, password)) {
             printf("管理员登录成功！\n");
@@ -392,9 +554,9 @@ static void inputNewBook(BookList *head) {
     }
     clearInput();
 
-    genBookId(*head, b.id, sizeof(b.id));   /*自动生成编号，如B009*/
-    b.total = b.stock;  /*新书馆藏总数=库存数量*/
-    b.price = 0.00;     /*价格暂不录入，默认0*/
+    genBookId(*head, b.id, sizeof(b.id));
+    b.total = b.stock;
+    b.price = 0.00;
 
     if (!appendBook(head, b)) {
         printf("内存不足，图书录入失败！\n");
@@ -414,7 +576,6 @@ static void updateBookInfo(BookList head) {
         return;
     }
 
-    /*先按编号、其次按书名定位图书*/
     BookNode *node = findBookById(head, key);
     if (node == NULL) {
         node = findBookByName(head, key);
@@ -429,7 +590,6 @@ static void updateBookInfo(BookList head) {
 
     char buf[64];
 
-    /*书名：回车保留原值*/
     printf("请输入新的书名（回车保留原值）：");
     readLine(buf, sizeof(buf));
     if (buf[0] != '\0') {
@@ -437,7 +597,6 @@ static void updateBookInfo(BookList head) {
         node->data.name[sizeof(node->data.name) - 1] = '\0';
     }
 
-    /*作者*/
     printf("请输入新的作者（回车保留原值）：");
     readLine(buf, sizeof(buf));
     if (buf[0] != '\0') {
@@ -445,7 +604,6 @@ static void updateBookInfo(BookList head) {
         node->data.author[sizeof(node->data.author) - 1] = '\0';
     }
 
-    /*出版社*/
     printf("请输入新的出版社（回车保留原值）：");
     readLine(buf, sizeof(buf));
     if (buf[0] != '\0') {
@@ -453,7 +611,6 @@ static void updateBookInfo(BookList head) {
         node->data.publisher[sizeof(node->data.publisher) - 1] = '\0';
     }
 
-    /*出版年份：非法则保留原值*/
     printf("请输入新的出版年份（回车保留原值）：");
     readLine(buf, sizeof(buf));
     if (buf[0] != '\0') {
@@ -465,7 +622,6 @@ static void updateBookInfo(BookList head) {
         }
     }
 
-    /*库存数量：非法则保留原值*/
     printf("请输入新的库存数量（回车保留原值）：");
     readLine(buf, sizeof(buf));
     if (buf[0] != '\0') {
@@ -482,7 +638,7 @@ static void updateBookInfo(BookList head) {
 }
 
 /*管理员功能子菜单：图书信息录入等（后续功能在此扩展）*/
-static void adminMenu(BookList *head) {
+static void adminMenu(BookList *head, UserList *users) {
     int choice;
     while (1) {
         printf("\n======管理员功能======\n");
@@ -490,10 +646,11 @@ static void adminMenu(BookList *head) {
         printf("2.删除图书信息\n");
         printf("3.图书信息更新\n");
         printf("4.图书信息显示\n");
+        printf("5.用户信息管理\n");
         printf("0.返回主菜单\n");
         printf("请选择：");
         int ret = scanf("%d", &choice);
-        if (ret == EOF) {   /*输入流结束（如管道关闭）*/
+        if (ret == EOF) {
             return;
         }
         if (ret != 1) {
@@ -528,6 +685,9 @@ static void adminMenu(BookList *head) {
             case 4:
                 showBookList(*head);
                 break;
+            case 5:
+                userMenu(users);
+                break;
             case 0:
                 return;
             default:
@@ -539,7 +699,10 @@ static void adminMenu(BookList *head) {
 int main(void) {
     BookList list = createList();
     initSampleData(&list);
-    BorrowList records = createBorrowList();    /*借阅记录链表*/
+    BorrowList records = createBorrowList();
+    UserList users = createUserList();
+    initSampleUsers(&users);
+    Blacklist blacklist = createBlacklist();
 
     int choice;
     while (1) {
@@ -551,7 +714,7 @@ int main(void) {
         printf("0.退出\n");
         printf("请选择：");
         int ret = scanf("%d", &choice);
-        if (ret == EOF) {   /*输入流结束（如管道关闭），退出*/
+        if (ret == EOF) {
             break;
         }
         if (ret != 1) {
@@ -564,11 +727,13 @@ int main(void) {
         switch (choice) {
             case 1: queryMenu(list);    break;
             case 2: showAll(list);  break;
-            case 3: borrowdMenu(list, &records);    break;
-            case 4: if (adminLogin()) { adminMenu(&list); }   break;
+            case 3: borrowdMenu(list, &records, &blacklist);    break;
+            case 4: if (adminLogin()) { adminMenu(&list, &users); }   break;
             case 0:
                 freeList(list);
                 freeBorrowList(records);
+                freeUserList(users);
+                freeBlacklist(blacklist);
                 printf("感谢使用,再见！\n");
                 return 0;
             default:
@@ -577,6 +742,8 @@ int main(void) {
     }
     freeList(list);
     freeBorrowList(records);
+    freeUserList(users);
+    freeBlacklist(blacklist);
     printf("感谢使用,再见！\n");
     return 0;
 }

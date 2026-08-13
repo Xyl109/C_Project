@@ -11,16 +11,18 @@
   - 按出版年份精确查询
   - 按库存数量比较查询（`<=` / `>=` / `=`）
 - **浏览全部图书**：按链表顺序列出馆内全部图书及详细信息
-- **图书借阅**：输入书名或编号借书，自动校验库存、自动记录借阅日期并扣减库存
-- **图书归还**：输入书名或编号归还图书，自动标记借阅记录已归还并将库存加一
-- **借阅查询**：按借阅人姓名查询其当前未归还（在借）的图书，显示完整图书信息与借阅日期
+- **图书借阅**：输入书名或编号借书，自动校验库存、自动记录借阅日期与归还日期（借阅期限 30 天）并扣减库存，提示到店归还
+- **图书归还**：输入书名或编号归还图书，自动标记借阅记录已归还并将库存加一；逾期归还自动累计超时次数
+- **借阅查询**：按借阅人姓名查询其当前未归还（在借）的图书，显示完整图书信息、借阅日期与归还日期
+- **借阅黑名单**：借阅人累计逾期归还达 2 次即被拉入黑名单，禁止再次借阅图书
 - **管理员登录**：主菜单输入 `4` 进入管理员登录，默认账号 `admin` / `123456`，最多尝试 3 次
 - **图书信息录入**：管理员登录后进入管理员功能，录入书名/作者/出版社/出版年份/库存数量，编号自动生成（如 B009）
 - **图书信息删除**：管理员按图书编号或书名删除图书节点，删除成功或未找到均有提示
 - **图书信息更新**：管理员按图书编号或书名定位图书，逐项更新书名/作者/出版社/出版年份/库存数量，回车可保留原值
 - **图书信息显示**：管理员在管理员功能菜单以列表形式查看全部图书的书名/作者/出版社/出版年份/库存数量，空表给出提示
+- **用户信息管理**：管理员在管理员功能菜单添加/删除/更新用户（用户名/密码）、查看用户列表，用户名唯一、空表给出提示
 - **中文对齐**：内置 UTF-8 显示宽度计算，避免中文内容表格列错位
-- **内存管理**：程序退出时自动释放图书链表与借阅记录链表，防止内存泄漏
+- **内存管理**：程序退出时自动释放图书链表、借阅记录链表、用户链表与黑名单链表，防止内存泄漏
 
 ## 目录结构
 
@@ -30,11 +32,15 @@ C_Project/
 ├── book.h       # 图书结构体 Book 与图书链表操作声明
 ├── book.c       # 图书链表：创建、尾部插入、长度、遍历、释放
 ├── borrow.h     # 借阅记录结构体、借书流程与状态码声明
-├── borrow.c     # 借阅记录链表、按编号/书名查找、借书流程
+├── borrow.c     # 借阅记录链表、按编号/书名查找、借书/归还流程、归还日期计算
+├── blacklist.h  # 借阅黑名单结构体与操作声明
+├── blacklist.c  # 黑名单链表：查找、累计超时、判黑、释放
 ├── query.h      # 查询结果 QueryResult 与 5 种查询声明
 ├── query.c      # 条件查询实现与查询结果释放
 ├── admin.h      # 管理员账号结构体 Admin 与登录校验声明
 ├── admin.c      # 管理员登录校验实现（内置默认账号）
+├── user.h       # 用户结构体 User 与用户链表操作声明
+├── user.c       # 用户链表：创建、尾部插入、查找、删除、改密、遍历、释放
 ├── output/      # 构建产物目录（已被 .gitignore 忽略）
 ├── .vscode/     # VS Code 工程配置
 └── README.md
@@ -53,7 +59,7 @@ C_Project/
 在项目根目录执行：
 
 ```bash
-gcc -Wall -Wextra main.c book.c borrow.c query.c admin.c -o output/libman.exe
+gcc -Wall -Wextra main.c book.c borrow.c query.c admin.c user.c blacklist.c -o output/libman.exe
 ```
 
 运行：
@@ -99,23 +105,24 @@ gcc -Wall -Wextra main.c book.c borrow.c query.c admin.c -o output/libman.exe
 
 输入**书名或编号**定位图书，再输入借阅人姓名，流程为：
 
-1. 先按编号、其次按书名精确查找；
-2. 未找到返回 `BORROW_NOT_FOUND`，提示"未找到编号或名称为 xxx 的图书"；
+1. **黑名单检查**：借阅人累计逾期达 2 次已被拉黑时返回 `BORROW_BLACKLISTED`，提示"已被拉入借阅黑名单，禁止借阅图书"；
+2. 先按编号、其次按书名精确查找，未找到返回 `BORROW_NOT_FOUND`；
 3. 库存 `<= 0` 返回 `BORROW_NO_STOCK`，拒绝借阅；
-4. 借阅成功：新增一条借阅记录（日期取系统当前时间，格式 `yy-mm-dd`），库存自动减一；
+4. 借阅成功：新增一条借阅记录，记录借阅日期（系统当前时间，格式 `yy-mm-dd`）与**归还日期**（借阅日期 + 30 天借阅期限），库存自动减一，并提示"请记得到店归还，归还日期: xx-xx-xx"；
 5. 借阅记录**先写入成功后才扣减库存**，记录创建失败时库存保持不变（`BORROW_RECORD_FAIL`）。
 
 **归还图书**：在图书借阅子菜单中选择 `2`，输入要归还图书的书名或编号：
 
 1. 先按编号、其次按书名精确查找，未找到提示"未找到编号或者名称为 xxx 的图书"（`RETURN_NOT_FOUND`）；
 2. 在借阅记录链表中查找该图书**未归还**的记录，没有则提示"该图书没有未归还的借阅记录，归还失败"（`RETURN_NO_RECORD`）；
-3. 归还成功：该借阅记录标记为已归还（`returned = 1`），图书库存加一（`RETURN_OK`），提示"归还成功！库存已加一"。
+3. 归还成功：该借阅记录标记为已归还（`returned = 1`），图书库存加一；
+4. 若归还时已超过归还日期，则累计该借阅人一次超时（`RETURN_OVERDUE`），提示"已超过归还日期，已记录一次超时"；累计达 2 次即拉入黑名单。
 
 **借阅查询**：在图书借阅子菜单中选择 `3`，输入借阅人姓名：
 
 1. 系统遍历借阅记录，找出该借阅人**未归还**（`returned = 0`）的记录；
 2. 无记录时提示"借阅人 xxx 当前没有未归还的借阅记录！"；
-3. 有记录时显示"借阅人 xxx 当前共借阅 N 本图书"，并逐本列出完整图书信息（编号 / 书名 / 作者 / 出版社 / 年份 / 价格 / 馆藏 / 库存）与借阅日期。
+3. 有记录时显示"借阅人 xxx 当前共借阅 N 本图书"，并逐本列出完整图书信息（编号 / 书名 / 作者 / 出版社 / 年份 / 价格 / 馆藏 / 库存）与借阅日期、归还日期。
 
 ### 4. 管理员登录
 
@@ -134,6 +141,7 @@ gcc -Wall -Wextra main.c book.c borrow.c query.c admin.c -o output/libman.exe
 2.删除图书信息
 3.图书信息更新
 4.图书信息显示
+5.用户信息管理
 0.返回主菜单
 ```
 
@@ -153,9 +161,25 @@ gcc -Wall -Wextra main.c book.c borrow.c query.c admin.c -o output/libman.exe
 
 选择 `4` 进入**图书信息显示**：以列表形式展示全部图书，每行依次列出书名、作者、出版社、出版年份、库存数量；表为空时提示"当前没有图书数据！"。
 
+选择 `5` 进入**用户信息管理**，子菜单提供添加/删除/更新/查看列表四项：
+
+```
+======用户信息管理======
+1.添加用户
+2.删除用户
+3.更新用户信息
+4.查看用户列表
+0.返回
+```
+
+- **添加用户**：输入用户名与密码（均非空）；用户名重复时提示"用户名 xxx 已存在"并取消；
+- **删除用户**：输入用户名，找到则删除并提示"用户删除成功"，未找到提示"未找到用户名为 xxx 的用户"；
+- **更新用户信息**：输入用户名定位用户（未找到提示），显示当前信息后输入新密码，回车保留原值，更新成功回显；
+- **查看用户列表**：以列表形式展示全部用户的用户名与密码，空表提示"当前没有用户数据！"。
+
 ### 0. 退出
 
-释放所有动态内存（图书链表 + 借阅记录链表）后退出。
+释放所有动态内存（图书链表 + 借阅记录链表 + 用户链表）后退出。
 
 ## 数据结构与设计要点
 
@@ -163,14 +187,18 @@ gcc -Wall -Wextra main.c book.c borrow.c query.c admin.c -o output/libman.exe
 |---|---|---|
 | `Book` | 一本图书 | id / name / author / publisher / year / price / total / stock |
 | `BookNode` | 图书链表节点 | data（Book）、next |
-| `BorrowRecord` | 一条借阅记录 | userName / bookId / bookName / date / returned |
+| `BorrowRecord` | 一条借阅记录 | userName / bookId / bookName / date / dueDate / returned |
 | `BorrowNode` | 借阅记录链表节点 | data（BorrowRecord）、next |
+| `BlacklistNode` | 一条黑名单记录 | userName / overdueCount、next |
 | `QueryResult` | 查询结果 | nodes（命中节点指针数组）、count、ok |
 | `Admin` | 管理员账号 | username / password |
+| `User` | 一个用户 | username / password |
+| `UserNode` | 用户链表节点 | data（User）、next |
 
-- **存储结构**：图书与借阅记录均采用单向链表，`createList` / `createBorrowList` 返回 NULL 表示空链表；
-- **借阅流程**：查编号 → 查书名 → 校验库存 → 追加记录 → 扣减库存（失败回滚）；
+- **存储结构**：图书、借阅记录、用户与黑名单均采用单向链表，`createList` / `createBorrowList` / `createUserList` / `createBlacklist` 返回 NULL 表示空链表；
+- **借阅流程**：黑名单检查 → 查编号 → 查书名 → 校验库存 → 追加记录（含借阅日期与归还日期）→ 扣减库存（失败回滚）；
 - **归还流程**：查编号 → 查书名 → 查找该图书未归还的借阅记录 → 标记已归还 + 库存加一；无未归还记录时拒绝归还，避免从未借出的图书库存被错误增加（`stock > total`）；
+- **逾期与黑名单**：归还日期 = 借阅日期 + `BORROW_DAYS`（30 天）；归还时若当前日期 > 归还日期则 `recordOverdue` 累计一次，累计达 `MAX_OVERDUE_TIMES`（2 次）即 `isBlacklisted` 禁止借阅；
 - **查询实现**：全部基于 `O(n)` 线性遍历；书名 / 作者 / 出版社为 `strstr` 包含式模糊匹配；
 - **中文对齐**：`displayWidth` 按 UTF-8 编码统计显示宽度（三字节 CJK 计 2 列，其余计 1 列），配合 `printPadded` 补空格对齐；
 - **输入健壮性**：`clearInput` 清理 `scanf` 遗留的换行符、`readLine` 读取整行并去除末尾换行、非法输入提示重输、EOF（如管道关闭）自动退出。
@@ -193,6 +221,21 @@ gcc -Wall -Wextra main.c book.c borrow.c query.c admin.c -o output/libman.exe
 > 提示：若乱码表现为方框 / 问号而非错位文字，是控制台字体不支持中文，将字体改为新宋体（NSimSun）等中文字体即可。
 
 ## 更新记录
+
+**2026-08-13：开发记录借阅时间与借阅黑名单模块**
+
+1. 新增 `blacklist.h` / `blacklist.c`：`BlacklistNode`（userName / overdueCount）与黑名单链表操作（`createBlacklist` / `findBlacklistByName` / `isBlacklisted` / `recordOverdue` / `overdueCountOf` / `freeBlacklist`），累计超时达 `MAX_OVERDUE_TIMES`（2 次）即禁止借阅；
+2. `BorrowRecord` 新增 `dueDate` 字段；`borrow.c` 新增 `computeDueDate`（借阅日期 + `BORROW_DAYS` 30 天）与 `isOverdue`；`borrowBook` 前置黑名单检查（`BORROW_BLACKLISTED`），`returnBook` 逾期则 `recordOverdue` 并返回 `RETURN_OVERDUE`；
+3. `main.c`：借阅成功提示到店归还日期，借阅查询显示借阅/归还双日期，`main()` 创建黑名单并在两处退出路径 `freeBlacklist` 释放。
+
+验证：`gcc -Wall -Wextra` 编译零警告；正常借阅显示归还日期 / 逾期归还累计 / 两次逾期拉黑 / 黑名单借阅被拒 / 借阅查询双日期 / 退出无泄漏路径实测通过。
+
+**2026-08-13：开发用户信息管理模块**
+
+1. 新增 `user.h` / `user.c`：`User` 结构体（username / password）与用户链表操作（`createUserList` / `appendUser` / `findUserByName` / `removeUser` / `updateUserPassword` / `userListLength` / `traverseUserList` / `freeUserList`）；
+2. `main.c` 新增用户信息管理子菜单（添加/删除/更新/查看列表），内置 2 个样例用户；`main()` 创建用户链表并在两处退出路径 `freeUserList` 安全释放。
+
+验证：`gcc -Wall -Wextra` 编译零警告；添加（含重名/空输入）/ 删除（含未找到）/ 更新密码 / 查看列表 / 空表提示 / 退出无泄漏路径实测通过。
 
 **2026-08-13：开发图书信息显示模块**
 

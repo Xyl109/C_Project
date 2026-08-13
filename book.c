@@ -9,19 +9,19 @@ BookList createList(void) {
 int appendBook(BookList *head, Book b) {
     BookNode *newNode = (BookNode *)malloc(sizeof(BookNode));
     if (newNode == NULL) {
-        return 0;   /*内存分配失败*/
+        return 0;
     }
     newNode->data = b;
     newNode->next = NULL;
 
     if (*head == NULL) {
-        *head = newNode;    /*空链表：新节点即是头节点*/
+        *head = newNode;
     } else {
         BookNode *p = *head;
-        while (p->next != NULL) {   /*走到链表末尾*/
+        while (p->next != NULL) {
             p = p->next;
         }
-        p->next = newNode;  /*挂到表尾*/
+        p->next = newNode;
     }
     return 1;
 }
@@ -47,17 +47,17 @@ int removeBook(BookList *head, const char *key) {
     while (p != NULL) {
         if (strcmp(p->data.id, key) == 0 || strcmp(p->data.name, key) == 0) {
             if (prev == NULL) {
-                *head = p->next;    /*删除头节点，更新头指针*/
+                *head = p->next;
             } else {
-                prev->next = p->next;   /*摘链*/
+                prev->next = p->next;
             }
-            free(p);    /*释放节点内存*/
+            free(p);
             return 1;
         }
         prev = p;
         p = p->next;
     }
-    return 0;   /*未找到*/
+    return 0;
 }
 
 /*返回链表长度:O(n)*/
@@ -84,7 +84,7 @@ void traverseList(BookList head, void(*visit)(Book *b)) {
 void freeList(BookList head) {
     BookNode *p = head;
     while (p != NULL) {
-        BookNode *temp = p->next;   /*先保存后继节点*/
+        BookNode *temp = p->next;
         free(p);
         p = temp;
     }
