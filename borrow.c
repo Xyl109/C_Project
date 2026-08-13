@@ -97,6 +97,33 @@ BorrowStatus borrowBook(BookList head, BorrowList *records, const char *key, con
     return BORROW_OK;
 }
 
+/*归还一本图书：按照编号或者书名查找，找到后标记借阅记录已归还并将库存加1*/
+ReturnStatus returnBook(BookList head, BorrowList *records, const char *key) {
+    /*查找书籍，先按编号再按书名*/
+    BookNode *node = findBookById(head, key);
+    if (node == NULL) {
+        node = findBookByName(head, key);
+    }
+    if (node == NULL) {
+        return RETURN_NOT_FOUND;    /*未找到图书*/
+    }
+    /*查找该图书未归还的借阅记录*/
+    BorrowNode *p = *records;
+    while (p != NULL) {
+        if (strcmp(p->data.bookId, node->data.id) == 0 && !p->data.returned) {
+            break;
+        }
+        p = p->next;
+    }
+    if (p == NULL) {
+        return RETURN_NO_RECORD;    /*没有未归还的借阅记录*/
+    }
+    /*标记已归还，库存加一*/
+    p->data.returned = 1;
+    node->data.stock++;
+    return RETURN_OK;
+}
+
 /*释放整条借阅记录链表*/
 void freeBorrowList(BorrowList head) {
     BorrowNode *p = head;

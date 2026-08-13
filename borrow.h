@@ -9,6 +9,7 @@ typedef struct {
     char bookId[20];    /*借阅书籍编号*/
     char bookName[50];  /*借阅书籍名称*/
     char date[20];  /*借阅日期*/
+    int returned;   /*归还状态：0=未归还，1=已归还*/
 } BorrowRecord;
 
 /*借阅记录链表节点*/
@@ -28,6 +29,13 @@ typedef enum {
     BORROW_RECORD_FAIL = 3  /*内存不足，借阅记录创建失败*/
 } BorrowStatus;
 
+/*归还图书状态码*/
+typedef enum {
+    RETURN_OK = 0,  /*归还成功*/
+    RETURN_NOT_FOUND = 1,   /*未找到图书*/
+    RETURN_NO_RECORD = 2    /*该图书没有未归还的借阅记录*/
+} ReturnStatus;
+
 /*创建空借阅记录链表，返回NULL*/
 BorrowList createBorrowList(void);
 
@@ -44,6 +52,14 @@ BookNode *findBookByName(BookList head, const char *name);
 /*先追加借阅记录，再库存减一*/
 /*key为书名或者编号，userName为借阅人姓名，日期自动取当前系统时间*/
 BorrowStatus borrowBook(BookList head, BorrowList *records, const char *key, const char *userName);
+
+/*流程*/
+/*首先按照编号或者书名精确查找*/
+/*未找到就返回RETURN_NOT_FOUND*/
+/*在借阅记录链表中返回RETURN_NO_RECORD*/
+/*无未归还记录返回RETURN_NO_RECORD*/
+/*找到后标记该记录已归还，库存加一*/
+ReturnStatus returnBook(BookList head, BorrowList *records, const char *key);
 
 /*释放整条借阅记录链表，防止内存泄漏*/
 void freeBorrowList(BorrowList head);

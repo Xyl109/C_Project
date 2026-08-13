@@ -166,6 +166,7 @@ static void borrowdMenu(BookList head, BorrowList *records) {
     while (1) {
         printf("\n======图书借阅======\n");
         printf("1.借阅图书\n");
+        printf("2.归还图书\n");
         printf("0.返回主菜单\n");
         printf("请选择：");
         int ret = scanf("%d", &choice);
@@ -214,6 +215,30 @@ static void borrowdMenu(BookList head, BorrowList *records) {
                         printf("未知错误！\n");
                 }
                 break;
+            case 2: {
+                printf("请输入需要归还的书籍书名或者编号：");
+                char retKey[64];
+                readLine(retKey, sizeof(retKey));
+                if (retKey[0] == '\0') {
+                    printf("输入为空，归还取消！\n");
+                    break;
+                }
+                ReturnStatus rs = returnBook(head, records, retKey);
+                switch (rs) {
+                    case RETURN_OK:
+                        printf("归还成功！库存已加一。\n");
+                        break;
+                    case RETURN_NOT_FOUND:
+                        printf("未找到编号或者名称为\"%s\"的图书！\n", retKey);
+                        break;
+                    case RETURN_NO_RECORD:
+                        printf("该图书没有未归还的借阅记录，归还失败！\n");
+                        break;
+                    default:
+                        printf("未知错误！\n");
+                }
+                break;
+            }
             case 0:
                 return;
             default:
