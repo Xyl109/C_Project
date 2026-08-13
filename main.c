@@ -1,8 +1,8 @@
 #include <stdio.h>
 #include <string.h>
-#include "Inc/book.h"
-#include "Inc/query.h"
-#include "Inc/borrow.h"
+#include "book.h"
+#include "query.h"
+#include "borrow.h"
 
 /*清空缓冲区（配合scanf使用）*/
 static void clearInput(void) {
