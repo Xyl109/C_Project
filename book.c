@@ -26,6 +26,20 @@ int appendBook(BookList *head, Book b) {
     return 1;
 }
 
+/*生成下一个图书编号：解析现有B%d编号取最大值加1，如B009*/
+void genBookId(BookList head, char *buf, int size) {
+    int max = 0;
+    BookNode *p = head;
+    while (p != NULL) {
+        int n = 0;
+        if (sscanf(p->data.id, "B%d", &n) == 1 && n > max) {
+            max = n;
+        }
+        p = p->next;
+    }
+    snprintf(buf, (size_t)size, "B%03d", max + 1);
+}
+
 /*返回链表长度:O(n)*/
 int listLength(BookList head) {
     int n = 0;

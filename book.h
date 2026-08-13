@@ -29,6 +29,7 @@ typedef BookNode *BookList;
 /*链表操作函数声明*/
 BookList createList(void);  /*创建空链表，返回NULL*/
 int appendBook(BookList *head, Book b); /*尾部插入，成功返回1，失败返回0*/
+void genBookId(BookList head, char *buf, int size); /*生成下一个图书编号（如B009）*/
 int listLength(BookList head);  /*返回链表长度*/
 void traverseList(BookList head, void (*visit)(Book *b));   /*遍历，对每个节点调用visit*/
 void freeList(BookList head);   /*释放整条链表*/

@@ -328,6 +328,91 @@ static int adminLogin(void) {
     return 0;
 }
 
+/*录入一本新图书：书名/作者/出版社/出版年份/库存数量*/
+static void inputNewBook(BookList *head) {
+    Book b;
+    memset(&b, 0, sizeof(b));
+
+    printf("请输入书名：");
+    readLine(b.name, sizeof(b.name));
+    if (b.name[0] == '\0') {
+        printf("输入为空，录入取消！\n");
+        return;
+    }
+
+    printf("请输入作者：");
+    readLine(b.author, sizeof(b.author));
+    if (b.author[0] == '\0') {
+        printf("输入为空，录入取消！\n");
+        return;
+    }
+
+    printf("请输入出版社：");
+    readLine(b.publisher, sizeof(b.publisher));
+    if (b.publisher[0] == '\0') {
+        printf("输入为空，录入取消！\n");
+        return;
+    }
+
+    printf("请输入出版年份：");
+    if (scanf("%d", &b.year) != 1 || b.year <= 0 || b.year >= 2100) {
+        printf("出版年份无效，录入取消！\n");
+        clearInput();
+        return;
+    }
+    clearInput();
+
+    printf("请输入库存数量：");
+    if (scanf("%d", &b.stock) != 1 || b.stock < 0) {
+        printf("库存数量无效，录入取消！\n");
+        clearInput();
+        return;
+    }
+    clearInput();
+
+    genBookId(*head, b.id, sizeof(b.id));   /*自动生成编号，如B009*/
+    b.total = b.stock;  /*新书馆藏总数=库存数量*/
+    b.price = 0.00;     /*价格暂不录入，默认0*/
+
+    if (!appendBook(head, b)) {
+        printf("内存不足，图书录入失败！\n");
+        return;
+    }
+    printf("图书录入成功！编号:%s\n", b.id);
+    printBook(&b);
+}
+
+/*管理员功能子菜单：图书信息录入等（后续功能在此扩展）*/
+static void adminMenu(BookList *head) {
+    int choice;
+    while (1) {
+        printf("\n======管理员功能======\n");
+        printf("1.图书信息录入\n");
+        printf("0.返回主菜单\n");
+        printf("请选择：");
+        int ret = scanf("%d", &choice);
+        if (ret == EOF) {   /*输入流结束（如管道关闭）*/
+            return;
+        }
+        if (ret != 1) {
+            printf("输入无效，请重新输入！\n");
+            clearInput();
+            continue;
+        }
+        clearInput();
+
+        switch (choice) {
+            case 1:
+                inputNewBook(head);
+                break;
+            case 0:
+                return;
+            default:
+                printf("无效选项，请重新输入！\n");
+        }
+    }
+}
+
 int main(void) {
     BookList list = createList();
     initSampleData(&list);
@@ -357,7 +442,7 @@ int main(void) {
             case 1: queryMenu(list);    break;
             case 2: showAll(list);  break;
             case 3: borrowdMenu(list, &records);    break;
-            case 4: adminLogin();   break;
+            case 4: if (adminLogin()) { adminMenu(&list); }   break;
             case 0:
                 freeList(list);
                 freeBorrowList(records);
